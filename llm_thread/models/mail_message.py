@@ -22,9 +22,9 @@ class MailMessage(models.Model):
         fields_list.extend(["user_vote", "llm_role", "body_json"])
         return fields_list
 
-    def message_format(self):
+    def message_format(self, format_reply=True):
         """Override to include custom fields and set proper styling."""
-        result = super().message_format()
+        result = super().message_format(format_reply=format_reply)
         llm_fields_to_add = self._get_message_format_fields()
 
         for message_data, message in zip(result, self):
