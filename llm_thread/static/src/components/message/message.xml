@@ -50,6 +50,17 @@
             t-esc="messageView.message.toolCallId || 'N/A'"
           />)</span>
             </div>
+            <!-- Open Record / Open List button when action is present -->
+            <t t-if="!messageView.message.toolCallResultIsError and messageView.message.toolCallResultData?.__odoo_action__">
+                <button
+            class="btn btn-sm btn-primary o_llm_tool_open_btn mb-2"
+            t-on-click="messageView.onClickToolAction"
+          >
+                    <i class="fa fa-external-link me-1" />
+                    <t t-if="messageView.message.toolCallResultData.__odoo_action__.res_id">Open Record</t>
+                    <t t-else="">Open List</t>
+                </button>
+            </t>
             <!-- Display Arguments (optional, could be default collapsed) -->
             <details class="o_llm_tool_result_args mb-1">
                 <summary class="text-muted" style="cursor: pointer;">

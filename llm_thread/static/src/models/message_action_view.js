@@ -3,7 +3,22 @@
 import { _t } from "@web/core/l10n/translation";
 import { registerPatch } from "@mail/model/model_core";
 
-// 3. Patch MessageActionView for visual representation AND CLICK HANDLING
+registerPatch({
+  name: "MessageView",
+  recordMethods: {
+    async onClickToolAction() {
+      const action =
+        this.message?.toolCallResultData?.__odoo_action__;
+      if (!action) return;
+      try {
+        await this.env.services.action.doAction(action);
+      } catch (e) {
+        console.error("[LLM] Failed to execute tool action:", e);
+      }
+    },
+  },
+});
+
 registerPatch({
   name: "MessageActionView",
   fields: {
