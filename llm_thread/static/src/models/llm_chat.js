@@ -236,10 +236,11 @@ registerModel({
      * @param {String} params.name - Thread name
      * @param {String} [params.relatedThreadModel] - Related thread model
      * @param {Number} [params.relatedThreadId] - Related thread ID
+     * @param {Array} [additionalFields=[]] - Additional fields to fetch on creation
      * @returns {Promise<Object|null>} The created thread or null if failed
      * @throws {Error} If no LLM model is available
      */
-    async createThread({ name, relatedThreadModel, relatedThreadId }) {
+    async createThread({ name, relatedThreadModel, relatedThreadId, additionalFields = [] }) {
       const defaultModel = this.defaultLLMModel;
       if (!defaultModel) {
         this.messaging.notify({
@@ -269,8 +270,11 @@ registerModel({
 
       const threadDetails = await this.messaging.rpc({
         model: "llm.thread",
-        method: "read",
-        args: [[threadId], ["name", "model_id", "provider_id", "write_date"]],
+        method: "search_read",
+        kwargs: {
+          domain: [["id", "=", threadId]],
+          fields: [...THREAD_SEARCH_FIELDS, ...additionalFields],
+        },
       });
 
       if (!threadDetails || !threadDetails[0]) {
@@ -282,18 +286,16 @@ registerModel({
         return null;
       }
 
-      const thread = this.messaging.models.Thread.insert({
-        id: threadId,
-        model: "llm.thread",
-        name: threadDetails[0].name,
-        message_needaction_counter: 0,
-        isServerPinned: true,
-        llmModel: defaultModel,
-        llmChat: this,
-        updatedAt: threadDetails[0].write_date,
-        ...(relatedThreadModel && { relatedThreadModel }),
-        ...(relatedThreadId && { relatedThreadId }),
-      });
+      const mappedData = this._mapThreadDataFromServer(threadDetails[0]);
+      mappedData.llmChat = this;
+      if (relatedThreadModel) {
+        mappedData.relatedThreadModel = relatedThreadModel;
+      }
+      if (relatedThreadId) {
+        mappedData.relatedThreadId = relatedThreadId;
+      }
+
+      const thread = this.messaging.models.Thread.insert(mappedData);
 
       return thread;
     },

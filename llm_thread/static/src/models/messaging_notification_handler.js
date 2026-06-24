@@ -18,7 +18,7 @@ registerPatch({
       if (message.type === "llm.thread/open_in_chatter") {
         return this._handleLLMThreadOpenInChatter(message);
       }
-      super._handleNotification(message);
+      this._super(message);
     },
 
     _handleLLMThreadsDelete(message) {
