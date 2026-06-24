@@ -348,21 +348,25 @@ class LLMThread(models.Model):
             "thread_id": self.id,
         }
 
-        try:
-            related_record = self.env[self.model].browse(self.res_id)
-            if related_record:
-                context["related_record"] = RelatedRecordProxy(related_record)
-                context["related_model"] = self.model
-                context["related_res_id"] = self.res_id
-            else:
-                context["related_record"] = None
-                context["related_model"] = None
-                context["related_res_id"] = None
-        except Exception as e:
-            _logger.warning(
-                "Error accessing related record %s,%s: %s", self.model, self.res_id, e
-            )
-
+        context["related_record"] = None
+        context["related_model"] = None
+        context["related_res_id"] = None
+        if self.model and self.res_id:
+            try:
+                related_record = self.env[self.model].browse(self.res_id)
+                if related_record:
+                    context["related_record"] = RelatedRecordProxy(related_record)
+                    context["related_model"] = self.model
+                    context["related_res_id"] = self.res_id
+                else:
+                    _logger.warning(
+                        "Related record %s,%s not found", self.model, self.res_id
+                    )
+            #pylint: disable=broad-except
+            except Exception as e:
+                _logger.warning(
+                    "Error accessing related record %s,%s: %s", self.model, self.res_id, e
+                )
         return context
 
     # ============================================================================
