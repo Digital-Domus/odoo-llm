@@ -1,7 +1,7 @@
 import inspect
 import json
 import logging
-from typing import Any, get_type_hints
+from typing import Any, Optional, get_type_hints
 
 from pydantic import create_model
 
@@ -104,10 +104,16 @@ class LLMTool(models.Model):
         for param_name, param in signature.parameters.items():
             if param_name == "self":
                 continue
-            fields[param_name] = (
-                type_hints.get(param_name, Any),
-                param.default if param.default != param.empty else ...,
-            )
+            field_type = type_hints.get(param_name, Any)
+            if param.kind == param.VAR_KEYWORD:
+                default = {}
+            elif param.kind == param.VAR_POSITIONAL:
+                default = ()
+            else:
+                default = param.default if param.default != param.empty else ...
+            if default is None and field_type is not Any:
+                field_type = Optional[field_type]
+            fields[param_name] = (field_type, default)
 
         return create_model("DynamicModel", **fields)
 
