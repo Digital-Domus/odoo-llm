@@ -16,6 +16,14 @@ class LLMThread(models.Model):
         help="The assistant used for this thread",
     )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for record in records:
+            if not record.assistant_id:
+                record._set_default_assistant_if_available()
+        return records
+
     prompt_id = fields.Many2one(
         "llm.prompt",
         string="Prompt for workflow",
@@ -65,6 +73,37 @@ class LLMThread(models.Model):
         if assistant.prompt_id.id:
             update_vals["prompt_id"] = assistant.prompt_id.id
         return self.write(update_vals)
+
+    def _set_default_assistant_if_available(self):
+        """
+        Find and set a default assistant on this thread if one exists.
+        Searches for an is_default assistant matching the thread's model first,
+        then falls back to a generic is_default assistant (empty res_model).
+        Does nothing if no default assistant is found.
+        """
+        self.ensure_one()
+
+        assistant = self.env["llm.assistant"].search(
+            [
+                ("is_default", "=", True),
+                ("res_model", "=", self.model),
+            ],
+            limit=1,
+        )
+
+        if not assistant:
+            assistant = self.env["llm.assistant"].search(
+                [
+                    ("is_default", "=", True),
+                    "|",
+                    ("res_model", "=", False),
+                    ("res_model", "=", ""),
+                ],
+                limit=1,
+            )
+
+        if assistant:
+            self.set_assistant(assistant.id)
 
     def action_open_thread(self):
         """Open the thread in the chat client interface

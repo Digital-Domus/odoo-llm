@@ -7,6 +7,13 @@ patch(
   LLMChatThreadHeader.prototype,
   "llm_assistant.llm_assistant_dropdown_patch",
   {
+        /**
+     * Whether the current user has LLM Manager rights
+     */
+    get isLLMManager() {
+      return this.llmChat?.isLLMManager ?? false;
+    },
+
     /**
      * Get all available assistants
      */

@@ -78,16 +78,11 @@ class LLMAssistantActionMixin(models.AbstractModel):
         if not assistant_code:
             assistant_code = self.env.context.get("assistant_code")
 
-        if not assistant_code:
-            raise UserError(
-                "No assistant code provided. Please specify assistant_code parameter or context."
-            )
-
         # Find existing thread or create new one
         thread = self._find_or_create_llm_thread(force_new=force_new_thread)
 
-        # Find and set assistant
-        self._set_assistant_on_thread(thread, assistant_code)
+        if assistant_code:
+            self._set_assistant_on_thread(thread, assistant_code)
 
         # Return client action to open AI chat in chatter
         # This bypasses the bus notification system which can be unreliable on cloud deployments
@@ -178,5 +173,6 @@ class LLMAssistantActionMixin(models.AbstractModel):
         if not assistant:
             raise UserError(f"Assistant with code '{assistant_code}' not found!")
 
-        if not thread.assistant_id:
-            thread.set_assistant(assistant.id)
+        thread.set_assistant(assistant.id)
+
+
