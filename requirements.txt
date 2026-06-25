@@ -19,3 +19,5 @@ pyyaml
 qdrant-client
 replicate
 requests
+google-genai
+rjsmin
