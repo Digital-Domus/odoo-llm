@@ -175,9 +175,14 @@ class LLMProvider(models.Model):
             if message.content:
                 result["content"] = message.content
 
+            message_ts = self._extract_thought_signature_from_message(message)
+            if message_ts:
+                result["thought_signature"] = message_ts
+
             if message.tool_calls:
-                result["tool_calls"] = [
-                    {
+                result["tool_calls"] = []
+                for tc in message.tool_calls:
+                    tc_dict = {
                         "id": tc.id,
                         "type": tc.type,
                         "function": {
@@ -185,8 +190,10 @@ class LLMProvider(models.Model):
                             "arguments": tc.function.arguments,
                         },
                     }
-                    for tc in message.tool_calls
-                ]
+                    thought_signature = self._extract_thought_signature(tc)
+                    if thought_signature:
+                        tc_dict["thought_signature"] = thought_signature
+                    result["tool_calls"].append(tc_dict)
 
             if "content" in result or "tool_calls" in result:
                 return result
@@ -194,7 +201,7 @@ class LLMProvider(models.Model):
                 _logger.warning(
                     "OpenAI non-streaming response had no content or tool calls."
                 )
-                return {}  # Return empty dict if nothing to process
+                return {}
 
         except (AttributeError, IndexError, Exception) as e:
             _logger.exception("Error processing OpenAI non-streaming response")
@@ -211,6 +218,7 @@ class LLMProvider(models.Model):
         finish_reason = None
 
         try:
+            accumulated_thought_signature = None
             for chunk in response_stream:
                 choice = chunk.choices[0] if chunk.choices else None
                 delta = choice.delta if choice else None
@@ -220,6 +228,12 @@ class LLMProvider(models.Model):
 
                 if not delta:
                     continue
+
+                # Extract thought_signature from delta-level extra_content
+                # (Gemini returns it here for thinking/text parts)
+                delta_ts = self._extract_thought_signature_from_message(delta)
+                if delta_ts:
+                    accumulated_thought_signature = delta_ts
 
                 if delta.content:
                     yield {"content": delta.content}
@@ -243,26 +257,29 @@ class LLMProvider(models.Model):
                             tool_call_id = call_data.get("id").strip() or str(
                                 uuid.uuid4()
                             )
-                            final_tool_calls_list.append(
-                                {
-                                    # Generate a UUID for id if it's empty, google apis don't give tool call id for example
-                                    "id": tool_call_id,
-                                    "type": call_data.get(
-                                        "type", "function"
-                                    ),  # Default type
-                                    "function": {
-                                        "name": call_data["function"]["name"],
-                                        "arguments": call_data["function"]["arguments"],
-                                    },
-                                }
-                            )
+                            tc_dict = {
+                                "id": tool_call_id,
+                                "type": call_data.get(
+                                    "type", "function"
+                                ),
+                                "function": {
+                                    "name": call_data["function"]["name"],
+                                    "arguments": call_data["function"]["arguments"],
+                                },
+                            }
+                            if call_data.get("thought_signature"):
+                                tc_dict["thought_signature"] = call_data["thought_signature"]
+                            final_tool_calls_list.append(tc_dict)
                         else:
                             yield {
                                 "error": f"Received incomplete tool call data from provider for tool index {index}."
                             }
 
                     if final_tool_calls_list:
-                        yield {"tool_calls": final_tool_calls_list}
+                        result = {"tool_calls": final_tool_calls_list}
+                        if accumulated_thought_signature:
+                            result["thought_signature"] = accumulated_thought_signature
+                        yield result
                     elif assembled_tool_calls:
                         _logger.warning(
                             "Stream indicated tool calls, but none were successfully assembled."
@@ -296,6 +313,10 @@ class LLMProvider(models.Model):
         if tool_call_chunk.type:
             current_call["type"] = tool_call_chunk.type
 
+        thought_signature = self._extract_thought_signature(tool_call_chunk)
+        if thought_signature:
+            current_call["thought_signature"] = thought_signature
+
         func_chunk = tool_call_chunk.function
         if func_chunk:
             if func_chunk.name:
@@ -309,6 +330,126 @@ class LLMProvider(models.Model):
         )
 
         return tool_call_chunks
+
+    _thought_signature_registry = {}
+
+    def _detect_thought_signature_required(self):
+        """Check if this provider has returned thought_signature in tool call responses.
+
+        The Gemini API includes a thought_signature field in functionCall parts that
+        must be preserved when sending tool calls back in conversation history.
+        Once a provider is detected as requiring thought_signature, all tool calls
+        sent to it will include the preserved thought_signature values.
+
+        Detection happens in two ways:
+        1. Proactive: by checking if the api_base matches known Gemini endpoints
+        2. Reactive: by detecting thought_signature in API responses
+
+        State is tracked in a class-level dict keyed by record ID because
+        Odoo recordsets do not support arbitrary instance attributes.
+        """
+        key = self.id
+        if key in self._thought_signature_registry:
+            return True
+
+        if self._is_gemini_endpoint():
+            self._thought_signature_registry[key] = True
+            return True
+
+        return False
+
+    def _is_gemini_endpoint(self):
+        """Check if this provider's api_base points to a Gemini OpenAI-compatible endpoint."""
+        api_base = (self.api_base or '').rstrip('/')
+        gemini_patterns = (
+            'generativelanguage.googleapis.com',
+            'aiplatform.googleapis.com',
+        )
+        return any(pattern in api_base for pattern in gemini_patterns)
+
+    def _set_thought_signature_detected(self):
+        """Mark this provider as requiring thought_signature support."""
+        LLMProvider._thought_signature_registry[self.id] = True
+
+    def _extract_thought_signature(self, tool_call_obj):
+        """Extract thought_signature from a tool call object for Gemini API compatibility.
+
+        Auto-detects when the provider endpoint requires thought_signature by checking
+        if the response includes the field. Once detected, subsequent message formatting
+        will preserve thought_signature in tool calls.
+
+        The Gemini OpenAI-compatible endpoint returns thought_signature in various
+        locations depending on the response mode:
+        - Non-streaming: inside ``model_extra`` or ``google`` attribute on the tool call
+        - Streaming: inside ``extra_content.google.thought_signature`` on the delta
+        """
+        if not tool_call_obj:
+            return None
+
+        # 1. Check direct attribute (non-Gemini endpoints that include it top-level)
+        thought_signature = getattr(tool_call_obj, 'thought_signature', None)
+        if thought_signature is not None:
+            self._set_thought_signature_detected()
+            return thought_signature
+
+        extra = getattr(tool_call_obj, 'model_extra', None) or {}
+
+        # 2. Check model_extra for top-level thought_signature
+        result = extra.get('thought_signature')
+        if result:
+            self._set_thought_signature_detected()
+            return result
+
+        # 3. Check extra_content.google.thought_signature (Gemini streaming format)
+        extra_content = getattr(tool_call_obj, 'extra_content', None) or extra.get('extra_content', {})
+        if isinstance(extra_content, dict):
+            google_data = extra_content.get('google', {})
+            if isinstance(google_data, dict):
+                result = google_data.get('thought_signature')
+                if result:
+                    self._set_thought_signature_detected()
+                    return result
+
+        # 4. Check google-nested thought_signature (Gemini non-streaming format)
+        google_data = getattr(tool_call_obj, 'google', None) or extra.get('google', {})
+        if isinstance(google_data, dict):
+            result = google_data.get('thought_signature')
+            if result:
+                self._set_thought_signature_detected()
+                return result
+
+        return None
+
+    def _extract_thought_signature_from_message(self, message_obj):
+        """Extract thought_signature from a chat completion message object.
+
+        Gemini can return thought_signature at the message level (not on tool_calls)
+        via extra_content.google.thought_signature on the message/delta object.
+        """
+        if not message_obj:
+            return None
+
+        extra = getattr(message_obj, 'model_extra', None) or {}
+
+        # Check extra_content.google.thought_signature
+        extra_content = getattr(message_obj, 'extra_content', None) or extra.get('extra_content', {})
+        if isinstance(extra_content, dict):
+            google_data = extra_content.get('google', {})
+            if isinstance(google_data, dict):
+                result = google_data.get('thought_signature')
+                if result:
+                    self._set_thought_signature_detected()
+                    return result
+
+        # Check google attribute directly
+        google_data = getattr(message_obj, 'google', None) or extra.get('google', {})
+        if isinstance(google_data, dict):
+            result = google_data.get('thought_signature')
+            if result:
+                self._set_thought_signature_detected()
+                return result
+
+        return None
 
     def openai_embedding(self, texts, model=None):
         """Generate embeddings using OpenAI"""
@@ -391,7 +532,69 @@ class LLMProvider(models.Model):
         # Then validate and clean the messages for OpenAI
         result_messages = self._validate_and_clean_messages(formatted_messages)
 
+        # Detect if thought_signature is required from any pre-existing tool calls
+        thought_signature_required = self._detect_thought_signature_required()
+        if not thought_signature_required:
+            for msg in result_messages:
+                if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                    for tc in msg["tool_calls"]:
+                        if "thought_signature" in tc:
+                            thought_signature_required = True
+                            self._set_thought_signature_detected()
+                            break
+                    if thought_signature_required:
+                        break
+
+        if thought_signature_required:
+            self._apply_thought_signature_to_messages(result_messages)
+        else:
+            for msg in result_messages:
+                if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                    for tc in msg["tool_calls"]:
+                        tc.pop("thought_signature", None)
+
         return result_messages
+
+    def _apply_thought_signature_to_messages(self, messages):
+        """Convert top-level thought_signature on tool_calls to extra_content.google format.
+
+        The Gemini OpenAI-compatible endpoint requires thought_signature to be sent
+        inside ``extra_content.google.thought_signature`` on each tool call item.
+        The OpenAI Python SDK strips unknown top-level keys from tool_calls, but
+        ``extra_content`` is a known extension field that is preserved.
+
+        This method also extracts thought_signature from content-level extra_content
+        on assistant messages and moves it into the proper tool_calls format.
+        """
+        for msg in messages:
+            if msg.get("role") != "assistant":
+                continue
+
+            # Handle assistant content-level extra_content (Gemini thought signatures
+            # on text/thinking parts are sometimes returned at the delta level)
+            extra_content = msg.pop("extra_content", None)
+            if isinstance(extra_content, dict):
+                google_ts = (extra_content.get("google") or {}).get("thought_signature")
+                if google_ts and msg.get("tool_calls"):
+                    pass
+                elif google_ts and not msg.get("tool_calls"):
+                    msg["extra_content"] = extra_content
+
+            if not msg.get("tool_calls"):
+                continue
+
+            for tc in msg["tool_calls"]:
+                ts = tc.pop("thought_signature", None)
+                if ts:
+                    existing = tc.get("extra_content", {})
+                    if not isinstance(existing, dict):
+                        existing = {}
+                    google = existing.get("google", {})
+                    if not isinstance(google, dict):
+                        google = {}
+                    google["thought_signature"] = ts
+                    existing["google"] = google
+                    tc["extra_content"] = existing
 
     def openai_upload_file(self, file_tuple, purpose="fine-tune"):
         """Upload a file to OpenAI"""

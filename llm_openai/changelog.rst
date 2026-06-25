@@ -1,3 +1,16 @@
+16.0.1.1.6 (2026-06-25)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [FIX] Fixed 400 error from Gemini OpenAI-compatible endpoint when using tool calls by
+  preserving ``thought_signature`` in ``extra_content.google`` format on tool calls in
+  subsequent requests (required by Gemini 2.5+ and 3.x models)
+* [IMP] Added proactive Gemini endpoint detection based on ``api_base`` URL to enable
+  ``thought_signature`` handling before the first response
+* [IMP] Extended ``_extract_thought_signature`` to check ``extra_content.google`` (Gemini
+  streaming format) in addition to existing ``google`` and ``model_extra`` paths
+* [IMP] Added ``_extract_thought_signature_from_message`` for message-level thought_signature
+  extraction (Gemini returns it on delta/message objects for thinking parts)
+
 16.0.1.1.5 (2026-01-07)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -30,8 +30,9 @@ class MailMessage(models.Model):
             # Add tool calls if present in body_json
             tool_calls = self.get_tool_calls()
             if tool_calls:
-                formatted_message["tool_calls"] = [
-                    {
+                formatted_tool_calls = []
+                for tc in tool_calls:
+                    formatted_tc = {
                         "id": tc["id"],
                         "type": tc.get("type", "function"),
                         "function": {
@@ -39,8 +40,10 @@ class MailMessage(models.Model):
                             "arguments": tc["function"]["arguments"],
                         },
                     }
-                    for tc in tool_calls
-                ]
+                    if "thought_signature" in tc:
+                        formatted_tc["thought_signature"] = tc["thought_signature"]
+                    formatted_tool_calls.append(formatted_tc)
+                formatted_message["tool_calls"] = formatted_tool_calls
 
             return formatted_message
 
