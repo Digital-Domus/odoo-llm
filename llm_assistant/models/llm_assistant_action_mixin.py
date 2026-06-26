@@ -148,7 +148,7 @@ class LLMAssistantActionMixin(models.AbstractModel):
         # Create new thread
         thread = self.env["llm.thread"].create(
             {
-                "name": f"AI Chat - {self._name} #{self.id}",
+                "name": f"AI Chat - {self.name}" if "name" in self._fields else f"AI Chat - {self._name} #{self.id}",
                 "model": self._name,
                 "res_id": self.id,
                 "provider_id": default_model.provider_id.id,
