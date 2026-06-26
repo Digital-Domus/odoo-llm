@@ -166,6 +166,13 @@ class LLMAssistant(models.Model):
         ('unique_code', 'UNIQUE(code)', 'Assistant code must be unique.'),
     ]
 
+    partner_id = fields.Many2one(
+        "res.partner",
+        string="Avatar",
+        ondelete="set null",
+        help="Optional partner to use as author for AI messages. If set, the partner's name and avatar will be used in chat.",
+    )
+
     @api.depends("prompt_id", "default_values")
     def _compute_system_prompt_preview(self):
         """Compute preview of the formatted system prompt"""

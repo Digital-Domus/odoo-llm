@@ -26,7 +26,7 @@ Key Features:
 Use cases include creating specialized assistants for customer support, data analysis, training assistance, and more.
     """,
     "category": "Productivity, Discuss",
-    "version": "16.0.1.5.3",
+    "version": "16.0.1.6.0",
     "depends": [
         "base",
         "mail",

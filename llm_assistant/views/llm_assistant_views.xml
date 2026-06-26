@@ -80,6 +80,7 @@
                         <group name="configuration">
                             <field name="code" placeholder="e.g., roleplay, avatar_generation" />
                             <field name="res_model" placeholder="e.g., fleek.character" />
+                            <field name="partner_id" />
                             <field name="provider_id" />
                             <field name="model_id" />
                             <field

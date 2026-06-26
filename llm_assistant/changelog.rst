@@ -1,3 +1,8 @@
+16.0.1.6.0 (2026-06-26)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* [ADD] Added partner_id field to use partner's name/avatar in AI chat
+
 16.0.1.5.3 (2026-01-05)
 ~~~~~~~~~~~~~~~~~~~~~~~
 

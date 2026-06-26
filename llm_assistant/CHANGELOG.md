@@ -2,6 +2,18 @@
 
 All notable changes to the llm_assistant module will be documented in this file.
 
+## [16.0.1.6.0] - 2026-06-26
+
+### Added
+- **Partner for Chat**: New `partner_id` field linking to a partner record
+  - When set, the partner's name and avatar are used in AI chat messages
+  - Provides a cleaner approach using Odoo's existing partner system
+
+### Changed
+- **`_handle_streaming_response`**: Now uses `partner_id` as `author_id` when available
+- **`_handle_non_streaming_response`**: Now uses `partner_id` as `author_id` when available
+- **`_execute_tool_call`**: Now uses `partner_id` as `author_id` for tool messages
+
 ## [16.0.1.5.0] - 2025-07-13
 
 ### Added

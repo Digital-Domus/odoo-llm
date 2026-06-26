@@ -413,12 +413,17 @@ class LLMThread(models.Model):
         message = None
         accumulated_content = ""
         collected_tool_calls = []
+        author_id = (
+            self.assistant_id.partner_id.id
+            if self.assistant_id and self.assistant_id.partner_id
+            else False
+        )
 
         for chunk in stream_response:
             # Initialize message on first content
             if message is None and chunk.get("content"):
                 message = self.message_post(
-                    body="Thinking...", llm_role="assistant", author_id=False
+                    body="Thinking...", llm_role="assistant", author_id=author_id
                 )
                 yield {"type": "message_create", "message": message.message_format()[0]}
 
@@ -442,7 +447,7 @@ class LLMThread(models.Model):
 
         # CRITICAL FIX: Create assistant message IMMEDIATELY if we have tool calls
         if collected_tool_calls:
-            body_json = {"tool_calls": collected_tool_calls}
+            body_json = {"tool_calls": collected_tool_calls} if collected_tool_calls else None
 
             if not message:
                 # Create assistant message NOW, before returning to generate loop
@@ -450,7 +455,7 @@ class LLMThread(models.Model):
                     body="",  # Empty body for tool-only responses
                     body_json=body_json,
                     llm_role="assistant",
-                    author_id=False,
+                    author_id=author_id,
                 )
                 # Commit to ensure message is saved before tool execution
                 self.env.cr.commit()
@@ -470,22 +475,24 @@ class LLMThread(models.Model):
 
     def _handle_non_streaming_response(self, response):
         """Handle non-streaming response from LLM provider."""
-        # Extract content and tool calls from response
         content = response.get("content", "")
         tool_calls = response.get("tool_calls", [])
 
         if not content and not tool_calls:
             content = "No response from model"
 
-        # Prepare body_json with tool calls if present
+        author_id = (
+            self.assistant_id.partner_id.id
+            if self.assistant_id and self.assistant_id.partner_id
+            else False
+        )
         body_json = {"tool_calls": tool_calls} if tool_calls else None
 
-        # Create assistant message with both content and tool calls
         assistant_message = self.message_post(
             body=self._process_llm_body(content) if content else "",
             body_json=body_json,
             llm_role="assistant",
-            author_id=False,
+            author_id=author_id,
         )
 
         yield {
@@ -507,10 +514,15 @@ class LLMThread(models.Model):
         Returns:
             mail.message: The tool message with execution result
         """
+        author_id = (
+            self.assistant_id.partner_id.id
+            if self.assistant_id and self.assistant_id.partner_id
+            else False
+        )
         try:
             # Create tool message using the post_tool_call method
             tool_msg = self.env["mail.message"].post_tool_call(
-                tool_call, thread_model=self
+                tool_call, thread_model=self, author_id=author_id
             )
             yield {"type": "message_create", "message": tool_msg.message_format()[0]}
 
@@ -524,7 +536,7 @@ class LLMThread(models.Model):
             # Create error tool message using the new method
             try:
                 error_msg = self.env["mail.message"].create_tool_error_message(
-                    tool_call, str(e), thread_model=self
+                    tool_call, str(e), thread_model=self, author_id=author_id
                 )
                 yield {
                     "type": "message_create",
@@ -534,3 +546,4 @@ class LLMThread(models.Model):
             except Exception as e2:
                 _logger.error(f"Failed to create error message: {e2}")
                 return None
+

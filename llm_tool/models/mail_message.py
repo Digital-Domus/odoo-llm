@@ -24,12 +24,13 @@ class MailMessage(models.Model):
         self.ensure_one()
         return bool(self.get_tool_calls())
 
-    def post_tool_call(self, tool_call, thread_model=None):
+    def post_tool_call(self, tool_call, thread_model=None, author_id=False):
         """Create a tool message from tool call data.
 
         Args:
             tool_call (dict): Tool call data from LLM response
             thread_model (recordset): The thread model that owns this message
+            author_id (int): Author partner ID to use for the message
 
         Returns:
             mail.message: The created tool message
@@ -65,7 +66,7 @@ class MailMessage(models.Model):
                 body=f"Executing {tool_name}",
                 body_json=tool_data,
                 llm_role="tool",
-                author_id=False,
+                author_id=author_id,
             )
         else:
             # If called on a message record, use its model and res_id
@@ -75,7 +76,7 @@ class MailMessage(models.Model):
                     "res_id": self.res_id,
                     "body_json": tool_data,
                     "subtype_xmlid": "llm.mt_tool",
-                    "author_id": False,
+                    "author_id": author_id,
                     "body": f"Executing {tool_name}",
                 }
             )
@@ -259,7 +260,7 @@ class MailMessage(models.Model):
         # Execute with message context
         return tool.with_context(message=self).execute(arguments)
 
-    def create_tool_error_message(self, tool_call, error_msg, thread_model=None):
+    def create_tool_error_message(self, tool_call, error_msg, thread_model=None, author_id=False):
         """Create an error tool message.
 
         Args:
@@ -281,7 +282,7 @@ class MailMessage(models.Model):
 
         if thread_model:
             return thread_model.message_post(
-                body_json=tool_data, llm_role="tool", author_id=False
+                body_json=tool_data, llm_role="tool", author_id=author_id
             )
         else:
             return self.env["mail.message"].create(
@@ -290,7 +291,7 @@ class MailMessage(models.Model):
                     "res_id": self.res_id,
                     "body_json": tool_data,
                     "subtype_xmlid": "llm.mt_tool",
-                    "author_id": False,
+                    "author_id": author_id,
                 }
             )
 
