@@ -83,6 +83,7 @@ class LLMToolKnowledgeRetriever(models.Model):
             limit=search_limit,
             collection_id=collection.id,
             query_min_similarity=similarity_cutoff,
+            query_text=query
         )
 
         result_data = self._process_search_results(

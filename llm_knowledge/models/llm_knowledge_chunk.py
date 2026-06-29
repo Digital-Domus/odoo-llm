@@ -241,6 +241,9 @@ class LLMKnowledgeChunk(models.Model):
             offset=offset,
             limit=limit,
             count=count,
+            query_text=kwargs.get(
+                "query_text", False
+            )            
         )
 
     def _vector_search_aggregate(
@@ -255,6 +258,7 @@ class LLMKnowledgeChunk(models.Model):
         offset,
         limit,
         count,
+        query_text=False
     ):
         """Performs vector search across collections, aggregates, sorts, and limits."""
         # List of tuples: (score, chunk_id)
@@ -278,6 +282,7 @@ class LLMKnowledgeChunk(models.Model):
                     query_operator=query_operator,
                     min_similarity=min_similarity,
                     offset=0,
+                    query_text=query_text
                 )
                 for result in results:
                     aggregated_results.append(
