@@ -24,6 +24,7 @@
         "views/llm_menu_views.xml",
         "data/mail_message_subtype.xml",
     ],
+    "pre_init_hook": "pre_init_hook",
     "license": "LGPL-3",
     "installable": True,
     "images": [
