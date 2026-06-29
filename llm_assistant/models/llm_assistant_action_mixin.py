@@ -108,7 +108,7 @@ class LLMAssistantActionMixin(models.AbstractModel):
         """
         if not force_new:
             thread = self.env["llm.thread"].search(
-                [("model", "=", self._name), ("res_id", "=", self.id)], limit=1
+                [("model", "=", self._name), ("res_id", "=", self.id)], limit=1, order='id desc'
             )
             if thread:
                 return thread

@@ -97,6 +97,14 @@ registerPatch({
       // This triggers activeThread update and view re-renders automatically
       llmChat.update({ activeThread: this });
 
+      // Update relatedThreadModel/relatedThreadId on llmChat when the thread is linked to a record
+      if (this.relatedThreadModel && this.relatedThreadId) {
+        llmChat.update({
+          relatedThreadModel: this.relatedThreadModel,
+          relatedThreadId: this.relatedThreadId,
+        });
+      }
+
       // Focus composer if requested
       if (focus && llmChat.llmChatView?.composer) {
         const composer = llmChat.llmChatView.composer;

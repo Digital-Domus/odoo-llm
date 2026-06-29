@@ -237,9 +237,8 @@ class LLMThread(models.Model):
 
         # Get last message if not provided
         if not last_message:
-            try:
-                last_message = self.get_latest_llm_message()
-            except UserError:
+            last_message = self.get_latest_llm_message(raise_exception=False)
+            if not last_message:
                 # No DB messages found - check if prepended messages have a user message
                 user_msg = next((msg for msg in prepend_messages if msg.get("role") == "user"), None)
 
@@ -259,7 +258,8 @@ class LLMThread(models.Model):
                     )
                 else:
                     # No user message in prepended messages either
-                    raise
+                    return
+#                    raise UserError("No user message found to generate a response from.")
 
         # Continue generation loop
         while self._should_continue(last_message):
@@ -364,7 +364,7 @@ class LLMThread(models.Model):
                 order="create_date ASC, write_date ASC, id ASC"
             )
 
-    def get_latest_llm_message(self):
+    def get_latest_llm_message(self, raise_exception=True):
         """Get the most recent LLM message for flow control.
         
         Returns:
@@ -388,7 +388,10 @@ class LLMThread(models.Model):
         )
         
         if not result:
-            raise UserError("No LLM messages found in this thread.")
+            if raise_exception:
+                raise UserError("No LLM messages found in this thread.")
+            else:
+                return self.env['mail.message']
         
         return result[0]
 
