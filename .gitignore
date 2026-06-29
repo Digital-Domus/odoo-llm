@@ -78,3 +78,7 @@ docs/_build/
 llm_thread/gptree_output.txt
 **/.gptree_config
 **/gptree_output.txt
+.playwright-mcp/page-2026-06-26T15-33-22-064Z.yml
+.playwright-mcp/page-2026-06-26T15-34-23-959Z.yml
+.playwright-mcp/page-2026-06-26T15-34-53-766Z.yml
+.playwright-mcp/page-2026-06-26T15-35-54-756Z.yml
