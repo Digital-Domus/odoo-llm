@@ -3,7 +3,7 @@ import json
 import logging
 import uuid
 
-from openai import OpenAI
+from openai import APIStatusError, OpenAI
 
 from odoo import api, models
 from odoo.exceptions import UserError
@@ -155,8 +155,16 @@ class LLMProvider(models.Model):
             tool_choice=tool_choice,
         )
 
-        # Make the API call
-        response = self.client.chat.completions.create(**params)
+        try:
+            response = self.client.chat.completions.create(**params)
+        except APIStatusError as e:
+            if e.status_code < 500:
+                _logger.error(
+                    "OpenAI client error %d (non-retryable): %s",
+                    e.status_code, str(e),
+                )
+                return {"error": str(e)}
+            raise
 
         # Process the response based on streaming mode
         if not stream:

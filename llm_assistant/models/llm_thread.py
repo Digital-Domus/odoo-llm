@@ -269,6 +269,8 @@ class LLMThread(models.Model):
                 else:
                     # Generate assistant response
                     last_message = yield from self._generate_assistant_response(prepend_messages)
+                    if not last_message:
+                        break
             elif (
                 last_message.llm_role == "assistant"
                 and last_message.has_tool_calls()
@@ -314,12 +316,20 @@ class LLMThread(models.Model):
         if use_streaming:
             # Handle streaming response - process tool calls directly from stream
             stream_response = self.sudo().model_id.chat(**chat_kwargs)
+            # Check if the provider returned an error dict instead of a stream
+            if isinstance(stream_response, dict) and stream_response.get("error"):
+                yield {"type": "error", "error": stream_response["error"]}
+                return None
             assistant_message = yield from self._handle_streaming_response(
                 stream_response
             )
         else:
             # Handle non-streaming response
             response = self.sudo().model_id.chat(**chat_kwargs)
+            # Check if the provider returned an error dict instead of a response
+            if isinstance(response, dict) and response.get("error"):
+                yield {"type": "error", "error": response["error"]}
+                return None
             assistant_message = yield from self._handle_non_streaming_response(response)
 
         return assistant_message
