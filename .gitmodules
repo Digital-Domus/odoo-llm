@@ -1,4 +1,0 @@
-[submodule "odoo-llm-dd"]
-	path = odoo-llm-dd
-	url = git@github.com:Digital-Domus/odoo-llm-dd.git
-	branch = 16.0
