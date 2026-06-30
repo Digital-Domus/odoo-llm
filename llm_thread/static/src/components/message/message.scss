@@ -31,3 +31,28 @@
     cursor: default; // Indicate it's not clickable unless you add functionality
   }
 }
+
+// Table formatting for AI-generated content
+.o_Message_prettyBody table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  width: auto;
+  max-width: 100%;
+
+  th,
+  td {
+    border: 1px solid $border-color;
+    padding: 0.25rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background-color: darken($gray-100, 1%);
+    font-weight: 600;
+  }
+
+  tr:nth-child(even) td {
+    background-color: $gray-100;
+  }
+}

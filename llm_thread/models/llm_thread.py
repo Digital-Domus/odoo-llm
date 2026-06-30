@@ -261,7 +261,7 @@ class LLMThread(models.Model):
         """Process body content for LLM messages (markdown to HTML conversion)."""
         if not body:
             return body
-        return markdown2.markdown(emoji.emojize(emoji.demojize(body), language='alias'))
+        return markdown2.markdown(emoji.emojize(emoji.demojize(body), language='alias'), extras=['tables'])
 
     # ============================================================================
     # STREAMING MESSAGE CREATION
