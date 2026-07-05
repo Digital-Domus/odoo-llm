@@ -33,6 +33,7 @@ Contact: support@apexive.com
     """,
     "category": "Productivity, Discuss",
     "version": "16.0.1.3.2",
+    "pre_init_hook": "pre_init_hook",
     "depends": ["base", "mail", "web", "llm", "llm_tool"],
     "author": "Apexive Solutions LLC",
     "website": "https://github.com/apexive/odoo-llm",
