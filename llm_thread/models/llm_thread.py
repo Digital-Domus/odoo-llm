@@ -351,6 +351,7 @@ class LLMThread(models.Model):
         context["related_record"] = None
         context["related_model"] = None
         context["related_res_id"] = None
+        context["user"] = self.env.user
         if self.model and self.res_id:
             try:
                 related_record = self.env[self.model].browse(self.res_id)
