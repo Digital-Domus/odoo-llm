@@ -11,6 +11,7 @@
       expr="//button[hasclass('o_ChatterTopbar_buttonScheduleActivity')]"
       position="after"
     >
+        <t t-if="1 == 0">
             <!-- AI Chat Button inserted next to Activities -->
             <div class="o_ChatterTopbar_borderLeft ms-2" />
             <button
@@ -20,6 +21,7 @@
       >
                 <span>AI</span>
             </button>
+        </t>
         </xpath>
     </t>
 </templates>
