@@ -140,6 +140,10 @@ export class LLMChatThreadHeader extends Component {
     return this.llmChat?.llmChatView?.isSmall ?? this.messaging.device.isSmall;
   }
 
+  get isLLMManager() {
+    return this.llmChat?.isLLMManager ?? false;
+  }
+
   // --------------------------------------------------------------------------
   // Event Handlers
   // --------------------------------------------------------------------------

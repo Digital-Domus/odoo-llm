@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { attr, many } from "@mail/model/model_field";
+import { many } from "@mail/model/model_field";
 import { clear } from "@mail/model/model_field_command";
 import { registerPatch } from "@mail/model/model_core";
 
@@ -15,7 +15,6 @@ registerPatch({
   fields: {
     // Use attr instead of many for direct array access
     llmAssistants: many("LLMAssistant"),
-    isLLMManager: attr({ default: false }),
   },
   onChanges: [
     {
@@ -24,18 +23,6 @@ registerPatch({
     },
   ],
   recordMethods: {
-    /**
-     * Check if current user is an LLM manager
-     */
-    async loadIsLLMManager() {
-      const hasGroup = await this.messaging.rpc({
-        model: "res.users",
-        method: "has_group",
-        args: ["llm.group_llm_manager"],
-      });
-      this.update({ isLLMManager: hasGroup });
-    },
-
     /**
      * Load assistants from the server
      */
@@ -109,12 +96,11 @@ registerPatch({
      * @override
      */
     async ensureDataLoaded() {
-      await this._super(); // Load models and tools
+      await this._super(); // Load models, tools, and manager check
       // Load assistants if not already loaded
       if (!this.llmAssistants || this.llmAssistants.length === 0) {
         await this.loadAssistants();
       }
-      await this.loadIsLLMManager();
     },
 
     /**
@@ -126,11 +112,10 @@ registerPatch({
       initActiveId,
       postInitializationPromises = []
     ) {
-      // Pass our loadAssistants and loadIsLLMManager promises to the original method
+      // Pass our loadAssistants promise to the original method
       return this._super(action, initActiveId, [
         ...postInitializationPromises,
         this.loadAssistants(),
-        this.loadIsLLMManager(),
       ]);
     },
 

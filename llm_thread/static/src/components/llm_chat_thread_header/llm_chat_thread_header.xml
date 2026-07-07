@@ -189,7 +189,7 @@
                 </div>
 
                 <!-- Tools Dropdown -->
-                <div class="dropdown ms-2">
+                <div t-if="isLLMManager" class="dropdown ms-2">
                     <button
             class="btn btn-light dropdown-toggle d-flex align-items-center gap-1"
             type="button"

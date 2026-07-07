@@ -312,6 +312,7 @@ registerModel({
       if (!this.tools || this.tools.length === 0) {
         await this.loadTools();
       }
+      await this.loadIsLLMManager();
     },
 
     /**
@@ -423,6 +424,7 @@ registerModel({
       // Wait for messaging to be initialized
       await this.messaging.initializedPromise;
       await this.loadLLMModels();
+      await this.loadIsLLMManager();
       // Load threads first
       await this.loadThreads();
       await this.loadTools();
@@ -465,6 +467,18 @@ registerModel({
         console.error("Error loading tools:", error);
         return [];
       }
+    },
+
+    /**
+     * Check if current user is an LLM manager
+     */
+    async loadIsLLMManager() {
+      const hasGroup = await this.messaging.rpc({
+        model: "res.users",
+        method: "has_group",
+        args: ["llm.group_llm_manager"],
+      });
+      this.update({ isLLMManager: hasGroup });
     },
   },
   fields: {
@@ -536,5 +550,6 @@ registerModel({
         return Boolean(this.relatedThreadModel && this.relatedThreadId);
       },
     }),
+    isLLMManager: attr({ default: false }),
   },
 });
