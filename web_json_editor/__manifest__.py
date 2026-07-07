@@ -19,7 +19,6 @@
             # JSONEditor library
             "web_json_editor/static/lib/jsoneditor/jsoneditor.min.js",
             "web_json_editor/static/lib/jsoneditor/jsoneditor.min.css",
-            "web_json_editor/static/lib/jsoneditor/img/jsoneditor-icons.svg",
             # Field widget
             "web_json_editor/static/src/fields/json_field.js",
             "web_json_editor/static/src/fields/json_field.xml",
