@@ -17,4 +17,21 @@
       }
     }
   }
+
+  .o_llm_thread_list_item {
+    .o_llm_thread_delete_btn {
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      background: transparent;
+
+      &:hover {
+        opacity: 1;
+        color: $danger;
+      }
+    }
+
+    &:hover .o_llm_thread_delete_btn {
+      opacity: 0.6;
+    }
+  }
 }

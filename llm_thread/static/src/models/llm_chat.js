@@ -480,6 +480,22 @@ registerModel({
       });
       this.update({ isLLMManager: hasGroup });
     },
+
+    /**
+     * Deletes a thread from the server.
+     * The local state is cleaned up via the llm.thread/delete bus notification
+     * handled by MessagingNotificationHandler.
+     * @param {Number} threadId - ID of the thread to delete
+     * @returns {Promise<boolean>} True if deletion succeeded
+     */
+    async deleteThread(threadId) {
+      await this.messaging.rpc({
+        model: "llm.thread",
+        method: "unlink",
+        args: [[threadId]],
+      });
+      return true;
+    },
   },
   fields: {
     activeId: attr({

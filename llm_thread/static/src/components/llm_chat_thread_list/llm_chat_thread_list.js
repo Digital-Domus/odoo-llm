@@ -2,6 +2,9 @@
 
 import { registerMessagingComponent } from "@mail/utils/messaging_component";
 import { useModels } from "@mail/component_hooks/use_models";
+import { useService } from "@web/core/utils/hooks";
+import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { sprintf } from "@web/core/utils/strings";
 
 const { Component, useState } = owl;
 
@@ -9,6 +12,7 @@ export class LLMChatThreadList extends Component {
   setup() {
     useModels();
     super.setup();
+    this.dialog = useService("dialog");
     this.state = useState({
       isLoading: false,
     });
@@ -26,6 +30,13 @@ export class LLMChatThreadList extends Component {
    */
   get activeThread() {
     return this.llmChatView.llmChat.activeThread;
+  }
+
+  /**
+   * @returns {boolean} True if the current user can delete threads
+   */
+  get isLLMManager() {
+    return this.llmChatView.llmChat.isLLMManager;
   }
 
   /**
@@ -50,6 +61,48 @@ export class LLMChatThreadList extends Component {
       });
     } finally {
       this.state.isLoading = false;
+    }
+  }
+
+  /**
+   * Handle thread delete
+   * @param {Thread} thread
+   */
+  async _onThreadDelete(thread) {
+    const confirmed = await new Promise((resolve) => {
+      this.dialog.add(
+        ConfirmationDialog,
+        {
+          title: this.env._t("Delete Conversation"),
+          body: sprintf(
+            this.env._t('Delete "%s"? This cannot be undone.'),
+            thread.name
+          ),
+          confirm: () => resolve(true),
+          cancel: () => resolve(false),
+        },
+        { onClose: () => resolve(false) }
+      );
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await this.llmChatView.llmChat.deleteThread(thread.id);
+      this.messaging.notify({
+        title: this.env._t("Deleted"),
+        message: this.env._t("Conversation deleted"),
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Error deleting thread:", error);
+      this.messaging.notify({
+        title: this.env._t("Error"),
+        message: this.env._t("Failed to delete conversation"),
+        type: "danger",
+      });
     }
   }
 }
