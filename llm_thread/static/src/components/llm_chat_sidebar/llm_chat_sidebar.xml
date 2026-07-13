@@ -50,14 +50,31 @@
                     </t>
                 </div>
 
-                <!-- Desktop: New Chat Button (only when expanded) -->
-                <div t-if="!llmChatView.isSidebarCollapsed" class="d-flex justify-content-center p-3">
+                <!-- Desktop: New Chat Button (only when expanded and not viewing archived) -->
+                <div t-if="!llmChatView.isSidebarCollapsed and !llmChatView.llmChat.showArchived" class="d-flex justify-content-center p-3">
                     <button
                         class="btn btn-primary rounded w-100"
                         t-on-click="_onClickNewChat"
                     >
                         <i class="fa fa-plus me-2" />
                         <span>New Chat</span>
+                    </button>
+                </div>
+
+                <!-- Desktop: Show archived toggle (only when expanded) -->
+                <div t-if="!llmChatView.isSidebarCollapsed" class="d-flex justify-content-center px-3 pb-2">
+                    <button
+                        class="btn btn-link btn-sm w-100 text-muted text-decoration-none"
+                        t-on-click="_onClickToggleArchived"
+                    >
+                        <t t-if="llmChatView.llmChat.showArchived">
+                            <i class="fa fa-arrow-left me-2" />
+                            <span>Back to conversations</span>
+                        </t>
+                        <t t-else="">
+                            <i class="fa fa-archive me-2" />
+                            <span>Show archived</span>
+                        </t>
                     </button>
                 </div>
 
@@ -74,13 +91,30 @@
                 </div>
 
                 <!-- Mobile: New Chat Button -->
-                <div class="d-flex justify-content-center p-3">
+                <div t-if="!llmChatView.llmChat.showArchived" class="d-flex justify-content-center p-3">
                     <button
                         class="btn btn-primary rounded w-100"
                         t-on-click="_onClickNewChat"
                     >
                         <i class="fa fa-plus me-2" />
                         <span>New Chat</span>
+                    </button>
+                </div>
+
+                <!-- Mobile: Show archived toggle -->
+                <div class="d-flex justify-content-center px-3 pb-2">
+                    <button
+                        class="btn btn-link btn-sm w-100 text-muted text-decoration-none"
+                        t-on-click="_onClickToggleArchived"
+                    >
+                        <t t-if="llmChatView.llmChat.showArchived">
+                            <i class="fa fa-arrow-left me-2" />
+                            <span>Back to conversations</span>
+                        </t>
+                        <t t-else="">
+                            <i class="fa fa-archive me-2" />
+                            <span>Show archived</span>
+                        </t>
                     </button>
                 </div>
 

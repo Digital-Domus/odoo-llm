@@ -8,8 +8,14 @@
                 <div
           class="d-flex flex-column align-items-center justify-content-center flex-grow-1 text-muted p-3"
         >
-                    <i class="fa fa-comments fa-3x mb-3 text-300" />
-                    <span class="fs-6">No chats yet</span>
+                    <t t-if="showArchived">
+                        <i class="fa fa-archive fa-3x mb-3 text-300" />
+                        <span class="fs-6">No archived conversations</span>
+                    </t>
+                    <t t-else="">
+                        <i class="fa fa-comments fa-3x mb-3 text-300" />
+                        <span class="fs-6">No chats yet</span>
+                    </t>
                 </div>
             </t>
             <t t-else="">
@@ -31,9 +37,28 @@
                             <div
                 class="o_DiscussSidebarCategoryItem_item flex-grow-1"
               />
+                            <!-- Archive: shown when listing active threads -->
+                            <button
+                t-if="!showArchived"
+                class="o_llm_thread_action_btn o_llm_thread_archive_btn btn btn-sm py-0 px-2 me-1 text-muted border-0"
+                title="Archive conversation"
+                t-on-click.stop.prevent="() => this._onThreadArchive(thread)"
+            >
+                                <i class="fa fa-archive" />
+                            </button>
+                            <!-- Unarchive: shown when listing archived threads -->
+                            <button
+                t-if="showArchived"
+                class="o_llm_thread_action_btn o_llm_thread_unarchive_btn btn btn-sm py-0 px-2 me-1 text-muted border-0"
+                title="Restore conversation"
+                t-on-click.stop.prevent="() => this._onThreadUnarchive(thread)"
+            >
+                                <i class="fa fa-undo" />
+                            </button>
+                            <!-- Delete: managers only -->
                             <button
                 t-if="isLLMManager"
-                class="o_llm_thread_delete_btn btn btn-sm py-0 px-2 me-1 text-muted border-0"
+                class="o_llm_thread_action_btn o_llm_thread_delete_btn btn btn-sm py-0 px-2 me-1 text-muted border-0"
                 title="Delete conversation"
                 t-on-click.stop.prevent="() => this._onThreadDelete(thread)"
             >

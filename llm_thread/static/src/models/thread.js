@@ -26,6 +26,8 @@ registerPatch({
       inverse: "threads",
     }),
     updatedAt: attr(),
+    // Whether the thread is active (not archived)
+    active: attr({ default: true }),
     // Added for related thread functionality
     relatedThreadModel: attr(),
     // Added for related thread functionality

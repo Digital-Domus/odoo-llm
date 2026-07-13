@@ -63,6 +63,13 @@ export class LLMChatSidebar extends Component {
       }
     }
   }
+
+  /**
+   * Toggle between active and archived conversations view
+   */
+  async _onClickToggleArchived() {
+    await this.llmChatView.llmChat.toggleShowArchived();
+  }
 }
 
 Object.assign(LLMChatSidebar, {

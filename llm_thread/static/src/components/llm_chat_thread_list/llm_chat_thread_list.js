@@ -40,6 +40,13 @@ export class LLMChatThreadList extends Component {
   }
 
   /**
+   * @returns {boolean} True if the sidebar is currently showing archived threads
+   */
+  get showArchived() {
+    return this.llmChatView.llmChat.showArchived;
+  }
+
+  /**
    * Handle thread click
    * @param {Thread} thread
    */
@@ -101,6 +108,50 @@ export class LLMChatThreadList extends Component {
       this.messaging.notify({
         title: this.env._t("Error"),
         message: this.env._t("Failed to delete conversation"),
+        type: "danger",
+      });
+    }
+  }
+
+  /**
+   * Handle thread archive (set active=false)
+   * @param {Thread} thread
+   */
+  async _onThreadArchive(thread) {
+    try {
+      await this.llmChatView.llmChat.archiveThread(thread.id);
+      this.messaging.notify({
+        title: this.env._t("Archived"),
+        message: this.env._t("Conversation archived"),
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Error archiving thread:", error);
+      this.messaging.notify({
+        title: this.env._t("Error"),
+        message: this.env._t("Failed to archive conversation"),
+        type: "danger",
+      });
+    }
+  }
+
+  /**
+   * Handle thread unarchive (set active=true)
+   * @param {Thread} thread
+   */
+  async _onThreadUnarchive(thread) {
+    try {
+      await this.llmChatView.llmChat.unarchiveThread(thread.id);
+      this.messaging.notify({
+        title: this.env._t("Restored"),
+        message: this.env._t("Conversation restored"),
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Error unarchiving thread:", error);
+      this.messaging.notify({
+        title: this.env._t("Error"),
+        message: this.env._t("Failed to restore conversation"),
         type: "danger",
       });
     }

@@ -17,6 +17,7 @@ const THREAD_SEARCH_FIELDS = [
   "res_id",
   "tool_ids",
   "prompt_id",
+  "active",
 ];
 
 registerModel({
@@ -81,12 +82,15 @@ registerModel({
 
     /**
      * Load threads from the server for the current user.
+     * By default only active threads are loaded; pass showArchived=true (or set
+     * this.showArchived) to load archived threads instead.
      * @param {Array} [additionalFields=[]] - Additional fields to fetch
      * @param {Array} [domain=[]] - Additional domain criteria for filtering
      */
     async loadThreads(additionalFields = [], domain = []) {
       const defaultDomain = [["create_uid", "=", this.env.services.user.userId]];
-      const finalDomain = [...defaultDomain, ...domain];
+      const activeDomain = [["active", "=", this.showArchived ? false : true]];
+      const finalDomain = [...defaultDomain, ...activeDomain, ...domain];
 
       const result = await this.messaging.rpc({
         model: "llm.thread",
@@ -125,6 +129,7 @@ registerModel({
         relatedThreadId: threadData.res_id,
         selectedToolIds: threadData.tool_ids || [],
         promptId: threadData.prompt_id || null,
+        active: threadData.active,
       };
 
       // Handle the llmModel field separately to avoid undefined errors
@@ -496,6 +501,72 @@ registerModel({
       });
       return true;
     },
+
+    /**
+     * Sets the active flag on a thread via RPC then reloads the current list
+     * (active or archived depending on showArchived) so the UI reflects the change.
+     * If the affected thread was the active one and it is being moved out of the
+     * current view, the active thread is cleared.
+     * @param {Number} threadId - ID of the thread to update
+     * @param {Boolean} active - New value for the active flag
+     * @returns {Promise<void>}
+     */
+    async setThreadActive(threadId, active) {
+      await this.messaging.rpc({
+        model: "llm.thread",
+        method: "write",
+        args: [[threadId], { active: active }],
+      });
+      // If the affected thread is the current active thread and will no longer
+      // be visible in the active list, clear it to avoid dangling state.
+      const willBeVisible =
+        (this.showArchived && !active) || (!this.showArchived && active);
+      const isCurrent = this.activeThread && this.activeThread.id === threadId;
+      if (isCurrent && !willBeVisible) {
+        const composer = this.llmChatView?.composer;
+        if (composer && composer.isStreaming) {
+          composer._closeEventSource();
+        }
+        this.update({ activeThread: clear() });
+      }
+      await this.loadThreads();
+    },
+
+    /**
+     * Archives a thread (sets active=false).
+     * @param {Number} threadId - ID of the thread to archive
+     * @returns {Promise<void>}
+     */
+    async archiveThread(threadId) {
+      await this.setThreadActive(threadId, false);
+    },
+
+    /**
+     * Unarchives a thread (sets active=true).
+     * @param {Number} threadId - ID of the thread to unarchive
+     * @returns {Promise<void>}
+     */
+    async unarchiveThread(threadId) {
+      await this.setThreadActive(threadId, true);
+    },
+
+    /**
+     * Toggles between showing active and archived threads and reloads the list.
+     * When switching to archived view, the active thread is cleared to avoid
+     * showing messages for a thread that isn't in the visible list.
+     * @returns {Promise<void>}
+     */
+    async toggleShowArchived() {
+      this.update({ showArchived: !this.showArchived });
+      if (this.showArchived && this.activeThread) {
+        const composer = this.llmChatView?.composer;
+        if (composer && composer.isStreaming) {
+          composer._closeEventSource();
+        }
+        this.update({ activeThread: clear() });
+      }
+      await this.loadThreads();
+    },
   },
   fields: {
     activeId: attr({
@@ -567,5 +638,6 @@ registerModel({
       },
     }),
     isLLMManager: attr({ default: false }),
+    showArchived: attr({ default: false }),
   },
 });

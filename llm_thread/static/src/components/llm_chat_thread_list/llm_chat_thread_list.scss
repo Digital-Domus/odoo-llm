@@ -19,19 +19,30 @@
   }
 
   .o_llm_thread_list_item {
-    .o_llm_thread_delete_btn {
+    .o_llm_thread_action_btn {
       opacity: 0;
       transition: opacity 0.15s ease;
       background: transparent;
-
-      &:hover {
-        opacity: 1;
-        color: $danger;
-      }
     }
 
-    &:hover .o_llm_thread_delete_btn {
+    &:hover .o_llm_thread_action_btn {
       opacity: 0.6;
+    }
+
+    .o_llm_thread_action_btn:hover {
+      opacity: 1;
+    }
+
+    .o_llm_thread_delete_btn:hover {
+      color: $danger;
+    }
+
+    .o_llm_thread_archive_btn:hover {
+      color: $secondary;
+    }
+
+    .o_llm_thread_unarchive_btn:hover {
+      color: $success;
     }
   }
 }
