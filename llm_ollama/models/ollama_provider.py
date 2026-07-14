@@ -22,8 +22,21 @@ class LLMProvider(models.Model):
         return services + [("ollama", "Ollama")]
 
     def ollama_get_client(self):
-        """Get Ollama client instance"""
-        return ollama.Client(host=self.api_base or "http://localhost:11434")
+        """Get Ollama client instance
+
+        If an API key is configured on the provider, it is sent as a Bearer
+        token in the Authorization header. This is required for hosted/proxied
+        Ollama endpoints (e.g. Ollama Turbo/cloud or an auth gateway) that
+        otherwise reject requests with a 401 Unauthorized error.
+        """
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        return ollama.Client(
+            host=self.api_base or "http://localhost:11434",
+            headers=headers or None,
+        )
 
     # Ollama specific implementation
     def ollama_format_tools(self, tools):
@@ -111,6 +124,11 @@ class LLMProvider(models.Model):
         params = self._prepare_chat_params(
             model, messages, stream, tools=tools, **kwargs
         )
+
+        # Ollama's Client.chat() does not support the 'tool_choice' argument,
+        # which the generic _prepare_chat_params may add. Remove it to avoid
+        # "got an unexpected keyword argument 'tool_choice'" errors.
+        params.pop("tool_choice", None)
 
         response = self.client.chat(**params)
 
