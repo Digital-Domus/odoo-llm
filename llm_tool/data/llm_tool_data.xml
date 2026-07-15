@@ -5,7 +5,27 @@
         <field name="implementation">odoo_record_retriever</field>
         <field
       name="description"
-    >Retrieve records from any Odoo model with filtering capabilities. This tool allows you to fetch data from the database by specifying the model name, domain filters, fields to retrieve, and a limit on the number of records returned.</field>
+    ><![CDATA[
+Retrieve records from any Odoo model with filtering capabilities. This tool allows you to fetch data from the database by specifying the model name, domain filters, fields to retrieve, and a limit on the number of records returned.
+
+**Domain syntax:** A domain is a list of conditions, each formatted as ["field_name", "operator", "value"].
+Common operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `like`, `ilike`, `in`, `not in`, `child_of`.
+Multiple conditions are combined with AND by default; use `|` (OR) or `!` (NOT) as prefix logical operators.
+
+**Examples:**
+- Exact match: `[["name", "=", "John Doe"]]`
+- Case-insensitive search: `[["name", "ilike", "john"]]`
+- Greater than: `[["amount_total", ">", 1000]]`
+- Multiple values (IN): `[["id", "in", [1, 5, 42]]]`
+- Multiple values by name (IN): `[["name", "in", ["John Doe", "Jane Smith"]]]`
+- Exclude values (NOT IN): `[["country_id", "not in", [10, 20]]]`
+- Nested child search: `[["parent_id", "child_of", 1]]`
+- Combined AND conditions: `[["is_company", "=", true], ["customer_rank", ">", 0]]`
+- OR condition (prefix): `["|", ["name", "ilike", "john"], ["email", "ilike", "john"]]`
+- A OR B AND C (prefix applies to next two leaves): `["|", ["name", "ilike", "john"], ["is_company", "=", true], ["active", "=", true]]`
+- (A OR B) AND C AND D — OR must precede both branches it joins: `["|", ["name", "=", "John"], ["name", "=", "Jane"], ["active", "=", true], ["is_company", "=", true]]`
+- A OR B OR C (two prefix ORs nest right-to-left): `["|", ["|", ["name", "=", "John"], ["name", "=", "Jane"], ["name", "=", "Bob"]]`
+        ]]></field>
         <field name="default" eval="True" />
         <field name="active" eval="True" />
         <field name="requires_user_consent" eval="False" />
