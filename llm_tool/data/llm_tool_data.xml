@@ -6,19 +6,20 @@
         <field
       name="description"
     ><![CDATA[
-Retrieve records from any Odoo model with filtering capabilities. This tool allows you to fetch data from the database by specifying the model name, domain filters, fields to retrieve, and a limit on the number of records returned.
+
+Retrieve records from any Odoo model with filtering capabilities. This tool allows you to fetch data from the database by specifying the model name, domain filters, fields to retrieve, and a limit on the number of records returned. Domain parameters MUST be strings and must be enclosed in double quotes and properly escaped also when they are arrays
 
 **Domain syntax:** A domain is a list of conditions, each formatted as ["field_name", "operator", "value"].
 Common operators: `=`, `!=`, `>`, `>=`, `<`, `<=`, `like`, `ilike`, `in`, `not in`, `child_of`.
 Multiple conditions are combined with AND by default; use `|` (OR) or `!` (NOT) as prefix logical operators.
 
-**Examples:**
+**Examples: quoting is important**
 - Exact match: `[["name", "=", "John Doe"]]`
 - Case-insensitive search: `[["name", "ilike", "john"]]`
 - Greater than: `[["amount_total", ">", 1000]]`
-- Multiple values (IN): `[["id", "in", [1, 5, 42]]]`
-- Multiple values by name (IN): `[["name", "in", ["John Doe", "Jane Smith"]]]`
-- Exclude values (NOT IN): `[["country_id", "not in", [10, 20]]]`
+- Multiple values (IN): `[["id", "in", "[1, 5, 42]"]]`
+- Multiple values by name (IN): `[["name", "in", "[\"John Doe\", \"Jane Smith\"]"]`
+- Exclude values (NOT IN): `[["country_id", "not in", "[10, 20]"]]`
 - Nested child search: `[["parent_id", "child_of", 1]]`
 - Combined AND conditions: `[["is_company", "=", true], ["customer_rank", ">", 0]]`
 - OR condition (prefix): `["|", ["name", "ilike", "john"], ["email", "ilike", "john"]]`
