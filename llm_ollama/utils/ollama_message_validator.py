@@ -70,7 +70,12 @@ class OllamaMessageValidator:
         # Perform validation and cleaning
         self.remove_orphaned_tool_messages()
         self.handle_missing_tool_responses()
-        self.remove_tool_calls_from_non_final_assistant_messages()
+        # NOTE: We intentionally do NOT call remove_tool_calls_from_non_final_assistant_messages
+        # here. Stripping tool_calls from historical assistant messages leaves the following
+        # tool result messages orphaned (a "role": "tool" message with no preceding assistant
+        # tool_call), which confuses Ollama and makes it hallucinate/repeat tool execution text.
+        # Unlike OpenAI's behavior of keeping full tool-call history intact, removing tool_calls
+        # breaks the assistant(tool_calls) -> tool(result) pairing Ollama relies on.
 
         # Filter out None entries (removed messages)
         cleaned_messages = [msg for msg in self.messages if msg is not None]
@@ -104,7 +109,7 @@ class OllamaMessageValidator:
         # Second pass: collect all tool responses - now parse from content/body
         for i, msg in enumerate(self.messages):
             if msg and msg.get("role") == "tool":
-                tool_name = msg.get("name")
+                tool_name = msg.get("tool_name")
                 if not tool_name:
                     # Try to extract from content if it's JSON
                     try:
@@ -131,7 +136,7 @@ class OllamaMessageValidator:
             if not msg or msg.get("role") != "tool":
                 continue
 
-            tool_name = msg.get("name")
+            tool_name = msg.get("tool_name")
             if not tool_name:
                 # Try to extract from content if it's JSON
                 try:

@@ -85,6 +85,26 @@ class LLMProvider(models.Model):
             }
             return self._create_ollama_tool_from_schema(schema, tool)
 
+    def _recursively_patch_schema_items(self, schema_node):
+        """Recursively ensure 'items' dictionaries have a 'type' defined."""
+        if not isinstance(schema_node, dict):
+            return
+
+        if "items" in schema_node and isinstance(schema_node["items"], dict):
+            items_dict = schema_node["items"]
+            if "type" not in items_dict:
+                items_dict["type"] = "string"
+            self._recursively_patch_schema_items(items_dict)
+
+        if "properties" in schema_node and isinstance(schema_node["properties"], dict):
+            for prop_schema in schema_node["properties"].values():
+                self._recursively_patch_schema_items(prop_schema)
+
+        for combiner in ["anyOf", "allOf", "oneOf"]:
+            if combiner in schema_node and isinstance(schema_node[combiner], list):
+                for sub_schema in schema_node[combiner]:
+                    self._recursively_patch_schema_items(sub_schema)
+
     def _create_ollama_tool_from_schema(self, schema, tool):
         """Helper method to create an Ollama tool from a schema
 
@@ -95,6 +115,16 @@ class LLMProvider(models.Model):
         Returns:
             Dictionary in Ollama tool format
         """
+        if not schema:
+            _logger.warning(
+                f"Could not generate schema for tool {tool.name}, skipping."
+            )
+            return None
+
+        # Ensure all nested 'items' have a 'type' for broader compatibility
+        parameters_schema = schema
+        self._recursively_patch_schema_items(parameters_schema)
+
         formatted_tool = {
             "type": "function",
             "function": {
@@ -102,13 +132,71 @@ class LLMProvider(models.Model):
                 "description": tool.description,
                 "parameters": {
                     "type": "object",
-                    "properties": schema.get("properties", {}),
-                    "required": schema.get("required", []),
+                    "properties": parameters_schema.get("properties", {}),
+                    "required": parameters_schema.get("required", []),
                 },
             },
         }
 
         return formatted_tool
+
+    def _ollama_normalize_message_content(self, messages):
+        """Normalize message content to plain strings for Ollama.
+
+        The shared chat-param preparation (and some callers) may set
+        ``content`` as a list of parts in the OpenAI multimodal style
+        (e.g. tool-consent instructions are injected as
+        ``[{"type": "text", "text": ...}]``). Ollama's ``Message`` model
+        only accepts a string for ``content``, so flatten any list content
+        into a single concatenated string.
+        """
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            content = msg.get("content")
+            if isinstance(content, list):
+                text_parts = [
+                    part.get("text", "")
+                    for part in content
+                    if isinstance(part, dict) and part.get("type") == "text"
+                ]
+                non_text = [
+                    part.get("type")
+                    for part in content
+                    if isinstance(part, dict) and part.get("type") != "text"
+                ]
+                if non_text:
+                    _logger.debug(
+                        "Ollama does not support non-text content parts; "
+                        "dropping parts of types: %s",
+                        non_text,
+                    )
+                msg["content"] = "\n".join(part for part in text_parts if part)
+
+            # Ollama's ToolCall.Function.arguments must be a dict, but stored
+            # tool calls (and the OpenAI format) keep arguments as a JSON string.
+            tool_calls = msg.get("tool_calls")
+            if isinstance(tool_calls, list):
+                for tc in tool_calls:
+                    if not isinstance(tc, dict):
+                        continue
+                    func = tc.get("function")
+                    if not isinstance(func, dict):
+                        continue
+                    arguments = func.get("arguments")
+                    if isinstance(arguments, str):
+                        try:
+                            func["arguments"] = json.loads(arguments) or {}
+                        except (json.JSONDecodeError, ValueError):
+                            _logger.warning(
+                                "Ollama: could not parse tool call arguments "
+                                "as JSON, falling back to empty dict: %r",
+                                arguments,
+                            )
+                            func["arguments"] = {"_raw": arguments}
+                    elif arguments is None:
+                        func["arguments"] = {}
+        return messages
 
     def ollama_chat(
         self,
@@ -130,7 +218,24 @@ class LLMProvider(models.Model):
         # "got an unexpected keyword argument 'tool_choice'" errors.
         params.pop("tool_choice", None)
 
-        response = self.client.chat(**params)
+        # Ollama's Message model requires `content` to be a string, but the
+        # shared preparation may inject OpenAI-style list content (e.g. the
+        # tool-consent system message). Flatten list content to a string.
+        if params.get("messages"):
+            params["messages"] = self._ollama_normalize_message_content(
+                params["messages"]
+            )
+
+        try:
+            response = self.client.chat(**params)
+        except ollama.ResponseError as e:
+            if e.status_code < 500:
+                _logger.error(
+                    "Ollama client error %d (non-retryable): %s",
+                    e.status_code, str(e),
+                )
+                return {"error": str(e)}
+            raise
 
         if not stream:
             return self.ollama_process_non_streaming_response(response)
@@ -139,13 +244,12 @@ class LLMProvider(models.Model):
 
     def ollama_process_non_streaming_response(self, response):
         """Process a non-streaming response from Ollama"""
-        message = {
-            "role": "assistant",
+        result = {
             "content": response["message"]["content"] or "",  # Handle None content
         }
 
-        if "tool_calls" in response["message"] and response["message"]["tool_calls"]:
-            message["tool_calls"] = []
+        if response["message"].get("tool_calls"):
+            result["tool_calls"] = []
 
             for tool_call in response["message"]["tool_calls"]:
                 tool_name = tool_call["function"]["name"]
@@ -176,9 +280,15 @@ class LLMProvider(models.Model):
                             )
                             tool_call_data["function"]["arguments"] = str(arguments)
 
-                message["tool_calls"].append(tool_call_data)
+                result["tool_calls"].append(tool_call_data)
 
-        yield message
+        if not result.get("content") and not result.get("tool_calls"):
+            _logger.warning(
+                "Ollama non-streaming response had no content or tool calls."
+            )
+            return {}
+
+        return result
 
     def ollama_process_streaming_response(self, response):
         """
@@ -215,9 +325,12 @@ class LLMProvider(models.Model):
 
                 if tool_calls_chunk:
                     stream_has_tools = True
-                    for i, tool_call_delta in enumerate(tool_calls_chunk):
+                    for tool_call_delta in tool_calls_chunk:
+                        func_delta = tool_call_delta.get("function", {})
+                        tool_name = func_delta.get("name")
+                        key = tool_name if tool_name else str(uuid.uuid4())
                         assembled_tool_calls = self._ollama_update_tool_call_chunk(
-                            assembled_tool_calls, tool_call_delta, i
+                            assembled_tool_calls, tool_call_delta, key
                         )
 
             if stream_has_tools and is_done:
@@ -246,21 +359,21 @@ class LLMProvider(models.Model):
             yield {"error": f"Internal error processing Ollama stream: {e}"}
 
     def _ollama_update_tool_call_chunk(
-        self, assembled_tool_calls, tool_call_delta, index
+        self, assembled_tool_calls, tool_call_delta, key
     ):
         """
         Helper to assemble tool calls from Ollama stream chunks.
         Ensures arguments are stored as a complete JSON string.
         """
-        if index not in assembled_tool_calls:
-            assembled_tool_calls[index] = {
+        if key not in assembled_tool_calls:
+            assembled_tool_calls[key] = {
                 "id": None,
                 "type": "function",
                 "function": {"name": "", "arguments": ""},
                 "_complete": False,
             }
 
-        current_call = assembled_tool_calls[index]
+        current_call = assembled_tool_calls[key]
         func_delta = tool_call_delta.get("function", {})
 
         if func_delta.get("name"):
@@ -271,18 +384,18 @@ class LLMProvider(models.Model):
             if isinstance(new_args_part, dict):
                 # Pre-process dict values: attempt to parse stringified lists
                 processed_args = {}
-                for key, value in new_args_part.items():
+                for arg_key, value in new_args_part.items():
                     if isinstance(value, str):
                         try:
                             parsed_value = ast.literal_eval(value)
                             if isinstance(parsed_value, list):
-                                processed_args[key] = parsed_value
+                                processed_args[arg_key] = parsed_value
                             else:
-                                processed_args[key] = value
+                                processed_args[arg_key] = value
                         except (ValueError, SyntaxError):
-                            processed_args[key] = value
+                            processed_args[arg_key] = value
                     else:
-                        processed_args[key] = value
+                        processed_args[arg_key] = value
                 current_call["function"]["arguments"] = json.dumps(processed_args)
             else:
                 _logger.warning(
@@ -303,12 +416,8 @@ class LLMProvider(models.Model):
         if isinstance(texts, str):
             texts = [texts]
 
-        # Get embeddings for each text
-        embeddings = []
-        for text in texts:
-            response = self.client.embed(model=model.name, input=[text])
-            embeddings.append(response["embeddings"][0])
-        return embeddings
+        response = self.client.embed(model=model.name, input=texts)
+        return response["embeddings"]
 
     def ollama_models(self, model_id=None):
         """List available Ollama models"""
